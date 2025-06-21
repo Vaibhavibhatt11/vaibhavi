@@ -1,0 +1,249 @@
+// plugins {
+//     id "com.android.application"
+//     id "kotlin-android"
+//     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+//     id "dev.flutter.flutter-gradle-plugin"
+//     id "com.google.gms.google-services"
+// }
+
+// def localProperties = new Properties()
+// def localPropertiesFile = rootProject.file("local.properties")
+// if (localPropertiesFile.exists()) {
+//     localPropertiesFile.withReader("UTF-8") { reader ->
+//         localProperties.load(reader)
+//     }
+// }
+
+// def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+// if (flutterVersionCode == null) {
+//     flutterVersionCode = "1"
+// }
+
+// def flutterVersionName = localProperties.getProperty("flutter.versionName")
+// if (flutterVersionName == null) {
+//     flutterVersionName = "1.0"
+// }
+
+// def keystoreProperties = new Properties()
+// def keystorePropertiesFile = rootProject.file('key.properties')
+// if (keystorePropertiesFile.exists()) {
+//     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+// }
+
+// android {
+//     namespace 'com.example.chat_app'
+//     compileSdk 34
+//     ndkVersion "25.1.8937393"
+
+//     defaultConfig {
+//         applicationId "com.example.chat_app"
+//         minSdk 21
+//         targetSdk 34
+//         versionCode flutterVersionCode.toInteger()
+//         versionName flutterVersionName
+//     }
+
+//     buildFeatures {
+//         buildConfig true
+//     }
+
+//     compileOptions {
+//         sourceCompatibility JavaVersion.VERSION_11
+//         targetCompatibility JavaVersion.VERSION_11
+//     }
+
+//     kotlinOptions {
+//         jvmTarget = "11"
+//     }
+
+//     buildTypes {
+//         release {
+//             minifyEnabled false
+//             signingConfig signingConfigs.debug
+//         }
+//     }
+// }
+
+// flutter {
+//     source = "../.."
+// }
+
+// dependencies {
+//     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7"
+//     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+// }
+
+
+
+
+
+
+
+//New file
+// plugins {
+//     id "com.android.application"
+//     id "kotlin-android"
+//     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+//     id "dev.flutter.flutter-gradle-plugin"
+//     id "com.google.gms.google-services"
+// }
+
+// def localProperties = new Properties()
+// def localPropertiesFile = rootProject.file("local.properties")
+// if (localPropertiesFile.exists()) {
+//     localPropertiesFile.withReader("UTF-8") { reader ->
+//         localProperties.load(reader)
+//     }
+// }
+
+// def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+// if (flutterVersionCode == null) {
+//     flutterVersionCode = "1"
+// }
+
+// def flutterVersionName = localProperties.getProperty("flutter.versionName")
+// if (flutterVersionName == null) {
+//     flutterVersionName = "1.0"
+// }
+
+// def keystoreProperties = new Properties()
+// def keystorePropertiesFile = rootProject.file('key.properties')
+// if (keystorePropertiesFile.exists()) {
+//     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+// }
+
+// android {
+//     namespace 'com.example.chat_app'
+//     compileSdk 34
+//     ndkVersion "25.1.8937393"
+
+//     defaultConfig {
+//         applicationId "com.example.chat_app"
+//         minSdk 21
+//         targetSdk 34
+//         versionCode flutterVersionCode.toInteger()
+//         versionName flutterVersionName
+//     }
+
+//     buildFeatures {
+//         buildConfig true
+//     }
+
+//     compileOptions {
+//         sourceCompatibility JavaVersion.VERSION_11
+//         targetCompatibility JavaVersion.VERSION_11
+//     }
+
+//     kotlinOptions {
+//         jvmTarget = "11"
+//     }
+
+//     buildTypes {
+//         release {
+//             minifyEnabled false
+//             signingConfig signingConfigs.debug
+//         }
+//     }
+// }
+
+// flutter {
+//     source = "../.."
+// }
+
+// dependencies {
+//     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7"
+//     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+// }
+
+
+
+
+
+
+
+//New file
+
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader("UTF-8") { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+if (flutterVersionCode == null) {
+    flutterVersionCode = "1"
+}
+
+def flutterVersionName = localProperties.getProperty("flutter.versionName")
+if (flutterVersionName == null) {
+    flutterVersionName = "1.0"
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace 'com.example.chat_app'
+    compileSdk 34
+    ndkVersion "25.1.8937393"
+
+    defaultConfig {
+        applicationId "com.example.chat_app"
+        minSdk 24
+        targetSdk 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    buildFeatures {
+        buildConfig true // ✅ This enables BuildConfig generation
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7"
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+
+    // ✅ Firebase dependencies
+    implementation platform('com.google.firebase:firebase-bom:32.7.0') // Update to latest if needed
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-firestore'
+
+    // Add more Firebase modules if needed
+}
