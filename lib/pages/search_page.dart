@@ -1,7 +1,7 @@
 import 'package:chatapp_final/helper/helper_function.dart';
 import 'package:chatapp_final/pages/chat_page.dart';
 import 'package:chatapp_final/service/database_service.dart';
-import 'package:chatapp_final/widgets/widgets.dart';
+import 'package:chatapp_final/widgets/widgets.dart' hide nextScreen;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -19,8 +19,8 @@ class _SearchPageState extends State<SearchPage> {
   QuerySnapshot? searchSnapshot;
   bool hasUserSearched = false;
   String userName = "";
-  bool isJoined = false;
   User? user;
+  Map<String, bool> joinedGroups = {}; // Track join status for each group
 
   @override
   void initState() {
@@ -29,21 +29,13 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   getCurrentUserIdandName() async {
-    await HelperFunctions.getUserNameFromSF().then((value) {
-      setState(() {
-        userName = value!;
-      });
-    });
+    userName = await HelperFunctions.getUserNameFromSF() ?? '';
     user = FirebaseAuth.instance.currentUser;
+    setState(() {});
   }
 
-  String getName(String r) {
-    return r.substring(r.indexOf("_") + 1);
-  }
-
-  String getId(String res) {
-    return res.substring(0, res.indexOf("_"));
-  }
+  String getName(String r) => r.substring(r.indexOf("_") + 1);
+  String getId(String res) => res.substring(0, res.indexOf("_"));
 
   @override
   Widget build(BuildContext context) {
@@ -53,11 +45,7 @@ class _SearchPageState extends State<SearchPage> {
         backgroundColor: Theme.of(context).primaryColor,
         title: const Text(
           "Search",
-          style: TextStyle(
-            fontSize: 27,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
       body: Column(
@@ -79,9 +67,7 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
                 GestureDetector(
-                  onTap: () {
-                    initiateSearchMethod();
-                  },
+                  onTap: initiateSearchMethod,
                   child: Container(
                     width: 40,
                     height: 40,
@@ -96,12 +82,8 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           isLoading
-              ? Center(
-                  child: CircularProgressIndicator(
-                    color: Theme.of(context).primaryColor,
-                  ),
-                )
-              : groupList(),
+              ? Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor))
+              : Expanded(child: groupList()),
         ],
       ),
     );
@@ -112,130 +94,83 @@ class _SearchPageState extends State<SearchPage> {
       setState(() {
         isLoading = true;
       });
-      await DatabaseService().searchByName(searchController.text).then((
-        snapshot,
-      ) {
+      await DatabaseService().searchByName(searchController.text).then((snapshot) {
+        searchSnapshot = snapshot;
+        hasUserSearched = true;
+        joinedGroups.clear();
+        for (var doc in snapshot.docs) {
+          final groupId = doc['groupId'];
+          checkJoinedStatus(groupId, doc['groupName']);
+        }
         setState(() {
-          searchSnapshot = snapshot;
           isLoading = false;
-          hasUserSearched = true;
         });
       });
     }
   }
 
-  groupList() {
-    return hasUserSearched
-        ? ListView.builder(
-            shrinkWrap: true,
-            itemCount: searchSnapshot!.docs.length,
-            itemBuilder: (context, index) {
-              return groupTile(
-                userName,
-                searchSnapshot!.docs[index]['groupId'],
-                searchSnapshot!.docs[index]['groupName'],
-                searchSnapshot!.docs[index]['admin'],
-              );
-            },
-          )
-        : Container();
-  }
-
-  joinedOrNot(
-    String userName,
-    String groupId,
-    String groupname,
-    String admin,
-  ) async {
-    await DatabaseService(
-      uid: user!.uid,
-    ).isUserJoined(groupname, groupId, userName).then((value) {
-      setState(() {
-        isJoined = value;
-      });
+  void checkJoinedStatus(String groupId, String groupName) async {
+    final isUserJoined = await DatabaseService(uid: user!.uid).isUserJoined(groupName, groupId, userName);
+    setState(() {
+      joinedGroups[groupId] = isUserJoined;
     });
   }
 
-  Widget groupTile(
-    String userName,
-    String groupId,
-    String groupName,
-    String admin,
-  ) {
-    // function to check whether user already exists in group
-    joinedOrNot(userName, groupId, groupName, admin);
+  Widget groupList() {
+    if (!hasUserSearched || searchSnapshot == null) return Container();
+    return ListView.builder(
+      itemCount: searchSnapshot!.docs.length,
+      itemBuilder: (context, index) {
+        final doc = searchSnapshot!.docs[index];
+        return groupTile(
+          userName,
+          doc['groupId'],
+          doc['groupName'],
+          doc['admin'],
+        );
+      },
+    );
+  }
+
+  Widget groupTile(String userName, String groupId, String groupName, String admin) {
+    final bool isJoined = joinedGroups[groupId] ?? false;
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       leading: CircleAvatar(
         radius: 30,
         backgroundColor: Theme.of(context).primaryColor,
-        child: Text(
-          groupName.substring(0, 1).toUpperCase(),
-          style: const TextStyle(color: Colors.white),
-        ),
+        child: Text(groupName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white)),
       ),
-      title: Text(
-        groupName,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
+      title: Text(groupName, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text("Admin: ${getName(admin)}"),
       trailing: InkWell(
         onTap: () async {
-          await DatabaseService(
-            uid: user!.uid,
-          ).toggleGroupJoin(groupId, userName, groupName);
-          if (isJoined) {
-            setState(() {
-              isJoined = !isJoined;
-            });
-            showSnackbar(context, Colors.green, "Successfully joined he group");
-            Future.delayed(const Duration(seconds: 2), () {
+          await DatabaseService(uid: user!.uid).toggleGroupJoin(groupId, userName, groupName);
+          setState(() {
+            joinedGroups[groupId] = !isJoined;
+          });
+          if (!isJoined) {
+            showSnackbar(context, Colors.green, "Successfully joined the group");
+            Future.delayed(const Duration(seconds: 1), () {
               nextScreen(
                 context,
-                ChatPage(
-                  groupId: groupId,
-                  groupName: groupName,
-                  userName: userName,
-                ),
+                ChatPage(groupId: groupId, groupName: groupName, userName: userName),
               );
             });
           } else {
-            setState(() {
-              isJoined = !isJoined;
-              showSnackbar(context, Colors.red, "Left the group $groupName");
-            });
+            showSnackbar(context, Colors.red, "Left the group $groupName");
           }
         },
-        child: isJoined
-            ? Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: Colors.black,
-                  border: Border.all(color: Colors.white, width: 1),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                child: const Text(
-                  "Joined",
-                  style: TextStyle(color: Colors.white),
-                ),
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: Theme.of(context).primaryColor,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                child: const Text(
-                  "Join Now",
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: isJoined ? Colors.black : Theme.of(context).primaryColor,
+            border: Border.all(color: Colors.white),
+          ),
+          child: Text(isJoined ? "Joined" : "Join Now", style: const TextStyle(color: Colors.white)),
+        ),
       ),
     );
   }

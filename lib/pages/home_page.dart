@@ -1,3 +1,4 @@
+// File: home_page.dart
 import 'package:chatapp_final/helper/helper_function.dart';
 import 'package:chatapp_final/pages/auth/login_page.dart';
 import 'package:chatapp_final/pages/profile_page.dart';
@@ -5,13 +6,18 @@ import 'package:chatapp_final/pages/search_page.dart';
 import 'package:chatapp_final/pages/personal_chat_menu.dart';
 import 'package:chatapp_final/service/auth_service.dart';
 import 'package:chatapp_final/service/database_service.dart';
+import 'package:chatapp_final/service/user_status_service.dart';
 import 'package:chatapp_final/widgets/group_tile.dart';
-import 'package:chatapp_final/widgets/widgets.dart';
+import 'package:chatapp_final/widgets/widgets.dart' hide nextScreen;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'auth/edit_profile_page.dart';
+import 'group_chat_page.dart';
+import 'group_info.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -20,43 +26,54 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String userName = "";
   String email = "";
+  String profileImage = "";
   AuthService authService = AuthService();
   Stream? groups;
   bool _isLoading = false;
   String groupName = "";
+  UserStatusService? _statusService;
 
   @override
   void initState() {
     super.initState();
-    gettingUserData();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _statusService = UserStatusService(user.uid);
+      gettingUserData(user.uid);
+    }
   }
 
-  String getId(String res) {
-    return res.substring(0, res.indexOf("_"));
+  @override
+  void dispose() {
+    _statusService?.dispose();
+    super.dispose();
   }
 
-  String getName(String res) {
-    return res.substring(res.indexOf("_") + 1);
+  String getId(String res) => res.substring(0, res.indexOf("_"));
+  String getName(String res) => res.substring(res.indexOf("_") + 1);
+
+  Future<void> gettingUserData(String uid) async {
+    email = await HelperFunctions.getUserEmailFromSF() ?? "";
+    userName = await HelperFunctions.getUserNameFromSF() ?? "";
+    groups = await DatabaseService(uid: uid).getUserGroups();
+    final snapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    if (snapshot.exists) {
+      profileImage = snapshot.data()?['profileImage'] ?? '';
+    }
+    setState(() {});
   }
 
-  gettingUserData() async {
-    await HelperFunctions.getUserEmailFromSF().then((value) {
-      setState(() {
-        email = value!;
-      });
-    });
-    await HelperFunctions.getUserNameFromSF().then((val) {
-      setState(() {
-        userName = val!;
-      });
-    });
-    await DatabaseService(
-      uid: FirebaseAuth.instance.currentUser!.uid,
-    ).getUserGroups().then((snapshot) {
-      setState(() {
-        groups = snapshot;
-      });
-    });
+  Future<void> _editProfile() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfilePage(userName: userName, email: email),
+      ),
+    );
+    if (result == true) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) gettingUserData(user.uid);
+    }
   }
 
   @override
@@ -65,9 +82,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         actions: [
           IconButton(
-            onPressed: () {
-              nextScreen(context, const SearchPage());
-            },
+            onPressed: () => nextScreen(context, const SearchPage()),
             icon: const Icon(Icons.search),
           ),
         ],
@@ -76,93 +91,58 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).primaryColor,
         title: const Text(
           "Groups",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 27,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 27),
         ),
       ),
       drawer: Drawer(
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 50),
           children: <Widget>[
-            Icon(Icons.account_circle, size: 150, color: Colors.grey[700]),
+            profileImage.isNotEmpty
+                ? CircleAvatar(radius: 70, backgroundImage: NetworkImage(profileImage))
+                : const CircleAvatar(radius: 70, child: Icon(Icons.account_circle, size: 70)),
             const SizedBox(height: 15),
-            Text(
-              userName,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text(userName, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 30),
             const Divider(height: 2),
             ListTile(
               onTap: () {},
               selectedColor: Theme.of(context).primaryColor,
               selected: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 5,
-              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
               leading: const Icon(Icons.group),
               title: const Text("Groups", style: TextStyle(color: Colors.black)),
             ),
             ListTile(
-              onTap: () {
-                nextScreenReplace(
-                  context,
-                  ProfilePage(userName: userName, email: email),
-                );
-              },
+              onTap: _editProfile,
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-              leading: const Icon(Icons.person),
-              title: const Text("Profile", style: TextStyle(color: Colors.black)),
+              leading: const Icon(Icons.edit),
+              title: const Text("Edit Profile", style: TextStyle(color: Colors.black)),
             ),
             ListTile(
+              title: const Text("Personal Chat"),
+              leading: const Icon(Icons.person),
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => PersonalChatMenu(
-                      currentUserId: FirebaseAuth.instance.currentUser!.uid,
-                    ),
-                  ),
+                  MaterialPageRoute(builder: (_) => PersonalChatMenuPage()),
                 );
               },
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-              leading: const Icon(Icons.chat),
-              title: const Text("Personal Chats", style: TextStyle(color: Colors.black)),
             ),
             ListTile(
               onTap: () async {
-                showDialog(
-                  barrierDismissible: false,
-                  context: context,
-                  builder: (context) {
-                    return AlertDialog(
-                      title: const Text("Logout"),
-                      content: const Text("Are you sure you want to logout?"),
-                      actions: [
-                        IconButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          icon: const Icon(Icons.cancel, color: Colors.red),
-                        ),
-                        IconButton(
-                          onPressed: () async {
-                            await authService.signOut();
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(builder: (context) => const LoginPage()),
-                                  (route) => false,
-                            );
-                          },
-                          icon: const Icon(Icons.done, color: Colors.green),
-                        ),
-                      ],
-                    );
-                  },
-                );
+                final user = FirebaseAuth.instance.currentUser;
+                if (user != null) {
+                  await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+                    'status': 'offline',
+                    'lastSeen': FieldValue.serverTimestamp(),
+                  });
+                  await authService.signOut();
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                        (route) => false,
+                  );
+                }
               },
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
               leading: const Icon(Icons.exit_to_app),
@@ -173,9 +153,7 @@ class _HomePageState extends State<HomePage> {
       ),
       body: groupList(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          popUpDialog(context);
-        },
+        onPressed: () => popUpDialog(context),
         elevation: 0,
         backgroundColor: Theme.of(context).primaryColor,
         child: const Icon(Icons.add, color: Colors.white, size: 30),
@@ -198,11 +176,7 @@ class _HomePageState extends State<HomePage> {
                   _isLoading
                       ? Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor))
                       : TextField(
-                    onChanged: (val) {
-                      setState(() {
-                        groupName = val;
-                      });
-                    },
+                    onChanged: (val) => setState(() => groupName = val),
                     style: const TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       enabledBorder: OutlineInputBorder(
@@ -226,19 +200,14 @@ class _HomePageState extends State<HomePage> {
                 ElevatedButton(
                   onPressed: () async {
                     if (groupName.isNotEmpty) {
-                      setState(() {
-                        _isLoading = true;
-                      });
-                      await DatabaseService(
-                        uid: FirebaseAuth.instance.currentUser!.uid,
-                      ).createGroup(
-                        userName,
-                        FirebaseAuth.instance.currentUser!.uid,
-                        groupName,
-                      );
-                      _isLoading = false;
+                      setState(() => _isLoading = true);
+                      await DatabaseService(uid: FirebaseAuth.instance.currentUser!.uid)
+                          .createGroup(userName, FirebaseAuth.instance.currentUser!.uid, groupName);
+                      setState(() => _isLoading = false);
                       Navigator.of(context).pop();
-                      showSnackbar(context, Colors.green, "Group created successfully.");
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        showSnackbar(context, Colors.green, "Group created successfully.");
+                      });
                     }
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor),
@@ -256,15 +225,44 @@ class _HomePageState extends State<HomePage> {
     return StreamBuilder(
       stream: groups,
       builder: (context, AsyncSnapshot snapshot) {
-        if (snapshot.hasData && snapshot.data['groups'] != null && snapshot.data['groups'].length != 0) {
+        if (snapshot.hasData &&
+            snapshot.data != null &&
+            snapshot.data['groups'] != null &&
+            (snapshot.data['groups'] as List).isNotEmpty) {
           return ListView.builder(
             itemCount: snapshot.data['groups'].length,
             itemBuilder: (context, index) {
               int reverseIndex = snapshot.data['groups'].length - index - 1;
-              return GroupTile(
-                groupId: getId(snapshot.data['groups'][reverseIndex]),
-                groupName: getName(snapshot.data['groups'][reverseIndex]),
-                userName: snapshot.data['fullName'],
+              String groupId = getId(snapshot.data['groups'][reverseIndex]);
+              String groupName = getName(snapshot.data['groups'][reverseIndex]);
+
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GroupChatPage(
+                      groupId: groupId,
+                      groupName: groupName,
+                      userName: userName,
+                    ),
+                  ),
+                ),
+                onLongPress: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GroupInfo(
+                      groupId: groupId,
+                      groupName: groupName,
+                      adminName: snapshot.data['uid'] + '_' + snapshot.data['fullName'],
+                    ),
+                  ),
+                ),
+                child: GroupTile(
+                  groupId: groupId,
+                  groupName: groupName,
+                  userName: snapshot.data['fullName'],
+                  adminName: '',
+                ),
               );
             },
           );
@@ -283,9 +281,7 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           GestureDetector(
-            onTap: () {
-              popUpDialog(context);
-            },
+            onTap: () => popUpDialog(context),
             child: Icon(Icons.add_circle, color: Colors.grey[700], size: 75),
           ),
           const SizedBox(height: 20),

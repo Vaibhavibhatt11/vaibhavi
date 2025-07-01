@@ -1,14 +1,17 @@
 import 'package:chatapp_final/pages/auth/login_page.dart';
 import 'package:chatapp_final/pages/home_page.dart';
+import 'package:chatapp_final/pages/profile/edit_profile_page.dart' hide EditProfilePage;
 import 'package:chatapp_final/service/auth_service.dart';
 import 'package:chatapp_final/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
+import 'auth/edit_profile_page.dart';
+
 class ProfilePage extends StatefulWidget {
-  String userName;
-  String email;
-  ProfilePage({Key? key, required this.email, required this.userName})
-    : super(key: key);
+  final String userName;
+  final String email;
+
+  const ProfilePage({super.key, required this.email, required this.userName});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -16,6 +19,11 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   AuthService authService = AuthService();
+
+  get userName => null;
+
+  get email => null;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,29 +56,29 @@ class _ProfilePageState extends State<ProfilePage> {
               onTap: () {
                 nextScreen(context, const HomePage());
               },
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 5,
-              ),
               leading: const Icon(Icons.group),
-              title: const Text(
-                "Groups",
-                style: TextStyle(color: Colors.black),
-              ),
+              title: const Text("Groups"),
             ),
             ListTile(
               onTap: () {},
               selected: true,
               selectedColor: Theme.of(context).primaryColor,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 5,
-              ),
-              leading: const Icon(Icons.group),
-              title: const Text(
-                "Profile",
-                style: TextStyle(color: Colors.black),
-              ),
+              leading: const Icon(Icons.person),
+              title: const Text("Profile"),
+            ),
+            ListTile(
+              onTap: () {
+                nextScreen(
+                  context,
+                  EditProfilePage(
+                    userName: userName,
+                    email: email,
+                  ),
+                );
+
+              },
+              leading: const Icon(Icons.edit),
+              title: const Text("Edit Profile"),
             ),
             ListTile(
               onTap: () async {
@@ -83,9 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       content: const Text("Are you sure you want to logout?"),
                       actions: [
                         IconButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
+                          onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.cancel, color: Colors.red),
                         ),
                         IconButton(
@@ -95,7 +101,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               MaterialPageRoute(
                                 builder: (context) => const LoginPage(),
                               ),
-                              (route) => false,
+                                  (route) => false,
                             );
                           },
                           icon: const Icon(Icons.done, color: Colors.green),
@@ -105,15 +111,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 );
               },
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 5,
-              ),
               leading: const Icon(Icons.exit_to_app),
-              title: const Text(
-                "Logout",
-                style: TextStyle(color: Colors.black),
-              ),
+              title: const Text("Logout"),
             ),
           ],
         ),

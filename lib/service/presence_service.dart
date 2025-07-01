@@ -16,14 +16,14 @@ class PresenceService {
 
   static void monitorConnection() {
     Connectivity().onConnectivityChanged.listen(
-      (ConnectivityResult result) {
-            if (result != ConnectivityResult.none) {
-              setUserStatus("online");
-            } else {
-              setUserStatus("offline");
-            }
-          }
-          as void Function(List<ConnectivityResult> event)?,
+          (ConnectivityResult result) {
+        if (result != ConnectivityResult.none) {
+          setUserStatus("online");
+        } else {
+          setUserStatus("offline");
+        }
+      }
+      as void Function(List<ConnectivityResult> event)?,
     );
   }
 }

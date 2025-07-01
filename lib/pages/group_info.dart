@@ -1,6 +1,4 @@
-import 'package:chatapp_final/pages/home_page.dart';
-import 'package:chatapp_final/service/database_service.dart';
-import 'package:chatapp_final/widgets/widgets.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -8,190 +6,211 @@ class GroupInfo extends StatefulWidget {
   final String groupId;
   final String groupName;
   final String adminName;
+
   const GroupInfo({
-    Key? key,
-    required this.adminName,
-    required this.groupName,
+    super.key,
     required this.groupId,
-  }) : super(key: key);
+    required this.groupName,
+    required this.adminName,
+  });
 
   @override
   State<GroupInfo> createState() => _GroupInfoState();
 }
 
 class _GroupInfoState extends State<GroupInfo> {
-  Stream? members;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  List<String> members = [];
+  bool isAdmin = false;
+  String searchEmail = '';
+  Map<String, dynamic>? searchResult;
+  bool loading = true;
+
   @override
   void initState() {
-    getMembers();
     super.initState();
+    getMembers();
   }
 
-  getMembers() async {
-    DatabaseService(
-      uid: FirebaseAuth.instance.currentUser!.uid,
-    ).getGroupMembers(widget.groupId).then((val) {
+  Future<void> getMembers() async {
+    try {
+      final snap = await _firestore.collection('groups').doc(widget.groupId).get();
+      if (snap.exists) {
+        final data = snap.data() as Map<String, dynamic>;
+        final List<dynamic> memList = data['members'] ?? [];
+        setState(() {
+          members = List<String>.from(memList);
+          isAdmin = (data['admin'] as String).split('_').first == _auth.currentUser!.uid;
+          loading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching members: $e');
+    }
+  }
+
+  void searchUserByEmail() async {
+    if (searchEmail.isEmpty) return;
+    final result = await _firestore.collection('users').where('email', isEqualTo: searchEmail).get();
+    if (result.docs.isNotEmpty) {
       setState(() {
-        members = val;
+        searchResult = result.docs.first.data() as Map<String, dynamic>;
+        searchResult!['uid'] = result.docs.first.id;
       });
+    } else {
+      setState(() => searchResult = null);
+    }
+  }
+
+  void addMember(String uid, String name) async {
+    final memberId = "$uid\_$name";
+    if (!members.contains(memberId)) {
+      members.add(memberId);
+      await _firestore.collection('groups').doc(widget.groupId).update({'members': members});
+      await _firestore.collection('users').doc(uid).update({
+        'groups': FieldValue.arrayUnion(["${widget.groupId}_${widget.groupName}"])
+      });
+      setState(() => searchResult = null);
+    }
+  }
+
+  void removeMember(String memberId) async {
+    members.remove(memberId);
+    await _firestore.collection('groups').doc(widget.groupId).update({'members': members});
+    final uid = memberId.contains('_') ? memberId.split('_').first : '';
+    if (uid.isNotEmpty) {
+      await _firestore.collection('users').doc(uid).update({
+        'groups': FieldValue.arrayRemove(["${widget.groupId}_${widget.groupName}"])
+      });
+    }
+    setState(() {});
+  }
+
+  void makeAdmin(String memberId) async {
+    await _firestore.collection('groups').doc(widget.groupId).update({
+      'admin': memberId,
+    });
+    setState(() {
+      isAdmin = memberId.split('_')[0] == _auth.currentUser!.uid;
     });
   }
 
-  String getName(String r) {
-    return r.substring(r.indexOf("_") + 1);
+  void leaveGroup() async {
+    final uid = _auth.currentUser!.uid;
+    final match = members.firstWhere(
+          (m) => m.startsWith(uid + '_'),
+      orElse: () => '',
+    );
+    if (match.isNotEmpty) {
+      members.remove(match);
+      await _firestore.collection('groups').doc(widget.groupId).update({'members': members});
+      await _firestore.collection('users').doc(uid).update({
+        'groups': FieldValue.arrayRemove(["${widget.groupId}_${widget.groupName}"])
+      });
+      if (!mounted) return;
+      Navigator.pop(context);
+    }
   }
 
-  String getId(String res) {
-    return res.substring(0, res.indexOf("_"));
+  Widget memberTile(String memberId) {
+    final parts = memberId.split('_');
+    if (parts.length < 2) return const SizedBox();
+
+    final uid = parts[0];
+    final name = parts[1];
+    final isThisAdmin = widget.adminName == memberId;
+
+    return ListTile(
+      leading: CircleAvatar(child: Text(name.isNotEmpty ? name[0] : '?')),
+      title: Text(name),
+      subtitle: Text(isThisAdmin ? "Admin" : ""),
+      trailing: isAdmin && !isThisAdmin
+          ? PopupMenuButton<String>(
+        onSelected: (value) {
+          if (value == 'remove') removeMember(memberId);
+          if (value == 'admin') makeAdmin(memberId);
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'remove', child: Text("Remove")),
+          PopupMenuItem(value: 'admin', child: Text("Make Admin")),
+        ],
+      )
+          : null,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Theme.of(context).primaryColor,
-        title: const Text("Group Info"),
+        title: const Text('Group Info'),
         actions: [
           IconButton(
-            onPressed: () {
-              showDialog(
-                barrierDismissible: false,
-                context: context,
-                builder: (context) {
-                  return AlertDialog(
-                    title: const Text("Exit"),
-                    content: const Text("Are you sure you exit the group? "),
-                    actions: [
-                      IconButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.cancel, color: Colors.red),
-                      ),
-                      IconButton(
-                        onPressed: () async {
-                          DatabaseService(
-                                uid: FirebaseAuth.instance.currentUser!.uid,
-                              )
-                              .toggleGroupJoin(
-                                widget.groupId,
-                                getName(widget.adminName),
-                                widget.groupName,
-                              )
-                              .whenComplete(() {
-                                nextScreenReplace(context, const HomePage());
-                              });
-                        },
-                        icon: const Icon(Icons.done, color: Colors.green),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
             icon: const Icon(Icons.exit_to_app),
+            onPressed: leaveGroup,
+          )
+        ],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+        children: [
+          Container(
+            color: Colors.blue.shade100,
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.groupName,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                Text(widget.adminName.contains('_')
+                    ? "Admin: ${widget.adminName.split('_')[1]}"
+                    : "Admin")
+              ],
+            ),
+          ),
+          if (isAdmin)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                onChanged: (val) => searchEmail = val,
+                decoration: InputDecoration(
+                  labelText: "Search user by email",
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: searchUserByEmail,
+                  ),
+                ),
+              ),
+            ),
+          if (searchResult != null)
+            ListTile(
+              title: Text(searchResult!['fullName'] ?? ''),
+              subtitle: Text(searchResult!['email'] ?? ''),
+              trailing: ElevatedButton(
+                child: const Text("Add"),
+                onPressed: () => addMember(
+                    searchResult!['uid'], searchResult!['fullName']),
+              ),
+            ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text("Members", style: TextStyle(fontSize: 18)),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: members.length,
+              itemBuilder: (ctx, i) => memberTile(members[i]),
+            ),
           ),
         ],
       ),
-      body: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                color: Theme.of(context).primaryColor.withOpacity(0.2),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Theme.of(context).primaryColor,
-                    child: Text(
-                      widget.groupName.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Group: ${widget.groupName}",
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 5),
-                      Text("Admin: ${getName(widget.adminName)}"),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            memberList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  memberList() {
-    return StreamBuilder(
-      stream: members,
-      builder: (context, AsyncSnapshot snapshot) {
-        if (snapshot.hasData) {
-          if (snapshot.data['members'] != null) {
-            if (snapshot.data['members'].length != 0) {
-              return ListView.builder(
-                itemCount: snapshot.data['members'].length,
-                shrinkWrap: true,
-                itemBuilder: (context, index) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 10,
-                    ),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Theme.of(context).primaryColor,
-                        child: Text(
-                          getName(
-                            snapshot.data['members'][index],
-                          ).substring(0, 1).toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      title: Text(getName(snapshot.data['members'][index])),
-                      subtitle: Text(getId(snapshot.data['members'][index])),
-                    ),
-                  );
-                },
-              );
-            } else {
-              return const Center(child: Text("NO MEMBERS"));
-            }
-          } else {
-            return const Center(child: Text("NO MEMBERS"));
-          }
-        } else {
-          return Center(
-            child: CircularProgressIndicator(
-              color: Theme.of(context).primaryColor,
-            ),
-          );
-        }
-      },
     );
   }
 }
