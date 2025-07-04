@@ -55,3 +55,7 @@ class AuthService {
     }
   }
 }
+
+extension on FirebaseAuthException {
+  Future? get message => null;
+}

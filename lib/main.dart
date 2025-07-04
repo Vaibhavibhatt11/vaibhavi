@@ -38,6 +38,9 @@ void main() async {
   runApp(const MyApp());
   _monitorConnectionStatus();
 }
+
+FirebaseOptions({required String apiKey, required String appId, required String messagingSenderId, required String projectId}) {
+}
 void _monitorConnectionStatus() {
 Connectivity().onConnectivityChanged.listen((ConnectivityResult result) async {
 try {
